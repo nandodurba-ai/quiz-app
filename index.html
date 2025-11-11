@@ -3,15 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Interactivo</title>
+    <title>Quiz Interactivo con QR</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .live-indicator {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
 </head>
 <body>
-    <div id="app">Cargando...</div>
+    <div id="app"></div>
+
     <script>
+        // Configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyB1-qX4gDXs-WeSBaJu6Xhrvy8fVQ7vaes",
             authDomain: "medicia-65cee.firebaseapp.com",
@@ -23,10 +40,20 @@
             measurementId: "G-M5DZ6L0WL3"
         };
 
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const auth = firebase.auth();
+        let database = null;
+        let auth = null;
+        let activeListeners = [];
 
+        try {
+            firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            auth = firebase.auth();
+            console.log('✅ Firebase inicializado correctamente');
+        } catch (error) {
+            console.error('❌ Error inicializando Firebase:', error);
+        }
+
+        // Estado global
         let state = {
             view: 'login',
             user: null,
@@ -38,242 +65,256 @@
             currentAnswers: {},
             qrCode: '',
             sessionId: null,
+            loginEmail: '',
+            loginPassword: '',
             participantCount: 0
         };
 
-        function render() {
-            const app = document.getElementById('app');
-            if (state.view === 'login') {
-                app.innerHTML = '<div class="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center p-4">' +
-                    '<div class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">' +
-                    '<h1 class="text-3xl font-bold text-center mb-6">Quiz Interactivo</h1>' +
-                    '<button onclick="loginWithGoogle()" class="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">' +
-                    'Continuar con Google' +
-                    '</button>' +
-                    '</div></div>';
-            } else if (state.view === 'admin') {
-                renderAdmin();
-            } else if (state.view === 'participant') {
-                renderParticipant();
-            }
+        const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+        function setState(updates, skipRender = false) {
+            state = { ...state, ...updates };
+            if (!skipRender) render();
         }
 
-        function renderAdmin() {
-            const app = document.getElementById('app');
-            let html = '<div class="min-h-screen bg-gray-50 p-6">';
-            html += '<div class="max-w-4xl mx-auto">';
-            html += '<div class="bg-white rounded-lg shadow p-6 mb-6">';
-            html += '<div class="flex justify-between items-center">';
-            html += '<h1 class="text-2xl font-bold">Mis Cuestionarios</h1>';
-            html += '<button onclick="logout()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Salir</button>';
-            html += '</div></div>';
-            
-            html += '<div class="bg-white rounded-lg shadow p-6">';
-            html += '<button onclick="newQuiz()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold mb-4">';
-            html += '+ Nuevo Quiz';
-            html += '</button>';
-            
-            if (state.quizzes.length === 0) {
-                html += '<p class="text-gray-600 text-center py-8">No tienes quizzes. Crea uno nuevo.</p>';
-            } else {
-                html += '<div class="space-y-4">';
-                state.quizzes.forEach(quiz => {
-                    html += '<div class="border rounded p-4">';
-                    html += '<h3 class="font-bold text-lg">' + quiz.title + '</h3>';
-                    html += '<p class="text-gray-600">' + quiz.questions.length + ' preguntas</p>';
-                    html += '<button onclick="activateQuiz(\'' + quiz.id + '\')" class="mt-2 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Activar</button>';
-                    html += '</div>';
-                });
-                html += '</div>';
-            }
-            
-            html += '</div></div></div>';
-            app.innerHTML = html;
+        function updateState(updates) {
+            state = { ...state, ...updates };
         }
 
-        function renderParticipant() {
-            const app = document.getElementById('app');
-            let html = '<div class="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4">';
-            html += '<div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl p-8">';
-            html += '<h1 class="text-2xl font-bold mb-4">' + escapeHtml(state.currentQuiz.title) + '</h1>';
-            html += '<input type="text" id="participant-name" placeholder="Tu nombre" class="w-full p-3 border-2 rounded-lg mb-6" value="' + escapeHtml(state.participantName) + '">';
-            
-            html += '<div class="space-y-6">';
-            for (let qIndex = 0; qIndex < state.currentQuiz.questions.length; qIndex++) {
-                const q = state.currentQuiz.questions[qIndex];
-                html += '<div class="bg-gray-50 p-6 rounded-xl">';
-                html += '<h3 class="font-bold mb-4">' + (qIndex + 1) + '. ' + escapeHtml(q.question) + '</h3>';
-                html += '<div class="space-y-3">';
-                
-                for (let oIndex = 0; oIndex < q.options.length; oIndex++) {
-                    const option = q.options[oIndex];
-                    const isChecked = state.currentAnswers[qIndex] === oIndex;
-                    const bgClass = isChecked ? 'bg-green-100 border-green-500' : 'bg-white border-gray-300';
-                    
-                    html += '<label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer border-2 ' + bgClass + '">';
-                    html += '<input type="radio" name="q' + qIndex + '" ';
-                    if (isChecked) html += 'checked ';
-                    html += 'onclick="selectAnswer(' + qIndex + ',' + oIndex + ')" class="w-5 h-5">';
-                    html += '<span>' + escapeHtml(option) + '</span>';
-                    html += '</label>';
-                }
-                
-                html += '</div></div>';
-            }
-            html += '</div>';
-            
-            html += '<button onclick="submitAnswers()" class="w-full mt-6 px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-lg">';
-            html += 'Enviar Respuestas';
-            html += '</button>';
-            html += '</div></div>';
-            
-            app.innerHTML = html;
-            
-            const nameInput = document.getElementById('participant-name');
-            if (nameInput) {
-                nameInput.addEventListener('input', function(e) {
-                    state.participantName = e.target.value;
-                });
-            }
-        }
-
-        function escapeHtml(text) {
-            if (!text) return '';
-            return text.replace(/&/g, '&amp;')
-                      .replace(/</g, '&lt;')
-                      .replace(/>/g, '&gt;')
-                      .replace(/"/g, '&quot;')
-                      .replace(/'/g, '&#039;');
-        }
-
-        function selectAnswer(qIndex, oIndex) {
-            state.currentAnswers[qIndex] = oIndex;
-            render();
-        }
+        // ============================================
+        // FUNCIONES DE AUTENTICACIÓN
+        // ============================================
 
         async function loginWithGoogle() {
             try {
                 const provider = new firebase.auth.GoogleAuthProvider();
                 const result = await auth.signInWithPopup(provider);
-                state.user = result.user;
-                state.view = 'admin';
-                loadQuizzes();
-                render();
+                setState({ user: result.user, view: 'admin' });
+                loadUserQuizzes(result.user.uid);
             } catch (error) {
-                alert('Error: ' + error.message);
+                if (error.code === 'auth/popup-closed-by-user') return;
+                alert('❌ Error al iniciar sesión: ' + error.message);
             }
         }
 
-        function logout() {
-            auth.signOut();
-            state.user = null;
-            state.view = 'login';
-            state.quizzes = [];
-            render();
+        async function loginUser() {
+            try {
+                const userCredential = await auth.signInWithEmailAndPassword(state.loginEmail, state.loginPassword);
+                setState({ user: userCredential.user, view: 'admin', loginEmail: '', loginPassword: '' });
+                loadUserQuizzes(userCredential.user.uid);
+            } catch (error) {
+                alert('❌ ' + (error.code === 'auth/wrong-password' ? 'Contraseña incorrecta' : 'Error al iniciar sesión'));
+            }
         }
 
-        function loadQuizzes() {
-            if (!state.user) return;
-            database.ref('quizzes/' + state.user.uid).on('value', function(snapshot) {
-                const data = snapshot.val();
-                state.quizzes = [];
-                if (data) {
-                    for (let key in data) {
-                        state.quizzes.push({
-                            id: key,
-                            title: data[key].title,
-                            questions: data[key].questions || []
-                        });
-                    }
-                }
+        function logoutUser() {
+            activeListeners.forEach(unsubscribe => unsubscribe());
+            activeListeners = [];
+            auth.signOut();
+            setState({ user: null, view: 'login', quizzes: [], currentQuiz: null });
+        }
+
+        auth.onAuthStateChanged((user) => {
+            if (user && state.view === 'login') {
+                setState({ user: user, view: 'admin' });
+                loadUserQuizzes(user.uid);
+            }
+        });
+
+        // ============================================
+        // FUNCIONES DE FIREBASE
+        // ============================================
+
+        function loadUserQuizzes(userId) {
+            const quizzesRef = database.ref('quizzes/' + userId);
+            const unsubscribe = quizzesRef.on('value', (snapshot) => {
+                const quizzesData = snapshot.val();
+                const quizzesList = quizzesData ? Object.keys(quizzesData).map(key => ({
+                    ...quizzesData[key],
+                    id: key
+                })) : [];
+                setState({ quizzes: quizzesList }, true);
                 if (state.view === 'admin') render();
             });
+            activeListeners.push(() => quizzesRef.off('value'));
+        }
+
+        function saveQuizToFirebase(quiz) {
+            const userId = state.user.uid;
+            const quizRef = database.ref('quizzes/' + userId + '/' + quiz.id);
+            return quizRef.set({
+                title: quiz.title,
+                questions: quiz.questions,
+                createdAt: quiz.createdAt,
+                updatedAt: new Date().toISOString()
+            });
+        }
+
+        function deleteQuizFromFirebase(quizId) {
+            const userId = state.user.uid;
+            return database.ref('quizzes/' + userId + '/' + quizId).remove();
+        }
+
+        function saveResponse(sessionId, participantData) {
+            const responseRef = database.ref('responses/' + sessionId).push();
+            return responseRef.set(participantData);
+        }
+
+        function loadResponses(sessionId, callback) {
+            const responsesRef = database.ref('responses/' + sessionId);
+            const unsubscribe = responsesRef.on('value', (snapshot) => {
+                const responsesData = snapshot.val();
+                const responsesList = responsesData ? Object.keys(responsesData).map(key => ({
+                    ...responsesData[key],
+                    id: key
+                })) : [];
+                callback(responsesList);
+            });
+            activeListeners.push(() => responsesRef.off('value'));
+            return unsubscribe;
+        }
+
+        async function clearResponses(sessionId) {
+            if (!confirm('¿Estás seguro de borrar TODAS las respuestas?\n\nEsta acción no se puede deshacer.')) {
+                return;
+            }
+            try {
+                await database.ref('responses/' + sessionId).remove();
+                alert('✅ Respuestas borradas exitosamente');
+                setState({ responses: {}, participantCount: 0 });
+            } catch (error) {
+                alert('❌ Error al borrar respuestas: ' + error.message);
+            }
+        }
+
+        // ============================================
+        // FUNCIONES DE CUESTIONARIOS
+        // ============================================
+
+        function addQuestion() {
+            const quiz = state.editingQuiz;
+            if (quiz.questions.length >= 10) {
+                alert('Máximo 10 preguntas permitidas');
+                return;
+            }
+            quiz.questions.push({
+                question: '',
+                options: ['', '', '', ''],
+                correctAnswer: 0,
+                hasCorrectAnswer: false  // Por defecto sin respuesta correcta (modo encuesta)
+            });
+            setState({ editingQuiz: quiz });
+        }
+
+        function updateQuestion(index, field, value) {
+            const quiz = state.editingQuiz;
+            quiz.questions[index][field] = value;
+            updateState({ editingQuiz: quiz });
+        }
+
+        function updateOption(qIndex, oIndex, value) {
+            const quiz = state.editingQuiz;
+            quiz.questions[qIndex].options[oIndex] = value;
+            updateState({ editingQuiz: quiz });
+        }
+
+        function toggleCorrectAnswer(qIndex) {
+            const quiz = state.editingQuiz;
+            quiz.questions[qIndex].hasCorrectAnswer = !quiz.questions[qIndex].hasCorrectAnswer;
+            if (!quiz.questions[qIndex].hasCorrectAnswer) {
+                quiz.questions[qIndex].correctAnswer = null;
+            } else if (quiz.questions[qIndex].correctAnswer === null) {
+                quiz.questions[qIndex].correctAnswer = 0;
+            }
+            setState({ editingQuiz: quiz });
+        }
+
+        function deleteQuestion(index) {
+            const quiz = state.editingQuiz;
+            quiz.questions.splice(index, 1);
+            setState({ editingQuiz: quiz });
+        }
+
+        async function saveQuiz() {
+            const quiz = state.editingQuiz;
+            if (!quiz.title || quiz.questions.length === 0) {
+                alert('Debes agregar un título y al menos una pregunta');
+                return;
+            }
+
+            if (!state.user || !state.user.uid) {
+                alert('❌ Error: No estás autenticado.');
+                return;
+            }
+
+            if (!quiz.id) {
+                quiz.id = 'quiz_' + Date.now();
+                quiz.createdAt = new Date().toISOString();
+            }
+
+            try {
+                await saveQuizToFirebase(quiz);
+                alert('✅ Cuestionario guardado exitosamente');
+                setState({ editingQuiz: null, view: 'admin' });
+            } catch (error) {
+                console.error('Error guardando quiz:', error);
+                alert('❌ Error al guardar: ' + error.message);
+            }
         }
 
         function newQuiz() {
-            const title = prompt('Título del quiz:');
-            if (!title) return;
-            
-            const quizId = 'quiz_' + Date.now();
-            database.ref('quizzes/' + state.user.uid + '/' + quizId).set({
-                title: title,
-                questions: [{
-                    question: 'Pregunta de ejemplo',
-                    options: ['Opción 1', 'Opción 2', 'Opción 3', 'Opción 4'],
-                    correctAnswer: 0,
-                    hasCorrectAnswer: false
-                }],
-                createdAt: new Date().toISOString()
+            setState({ 
+                editingQuiz: { id: null, title: '', questions: [], createdAt: null },
+                view: 'edit'
             });
         }
 
-        function activateQuiz(quizId) {
-            const quiz = state.quizzes.find(q => q.id === quizId);
-            if (!quiz) return;
-            
-            state.currentQuiz = quiz;
-            state.sessionId = 'session_' + Date.now();
-            state.qrCode = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + 
-                          encodeURIComponent(window.location.origin + window.location.pathname + '?q=' + 
-                          btoa(JSON.stringify({quiz: quiz, sessionId: state.sessionId})));
-            
-            alert('Quiz activado! Comparte el link con los participantes:\n' + 
-                  window.location.origin + window.location.pathname + '?q=' + 
-                  btoa(JSON.stringify({quiz: quiz, sessionId: state.sessionId})));
+        function editQuiz(quiz) {
+            setState({ 
+                editingQuiz: JSON.parse(JSON.stringify(quiz)),
+                view: 'edit'
+            });
         }
 
-        async function submitAnswers() {
-            if (!state.participantName.trim()) {
-                alert('Por favor ingresa tu nombre');
-                return;
-            }
-            
-            const answered = Object.keys(state.currentAnswers).length;
-            if (answered < state.currentQuiz.questions.length) {
-                alert('Por favor responde todas las preguntas');
-                return;
-            }
-            
+        async function deleteQuiz(quizId) {
+            if (!confirm('¿Estás seguro de eliminar este cuestionario?')) return;
             try {
-                await database.ref('responses/' + state.sessionId).push({
-                    name: state.participantName,
-                    answers: state.currentAnswers,
-                    timestamp: new Date().toISOString()
-                });
-                alert('¡Respuestas enviadas!');
-                state.currentAnswers = {};
-                state.participantName = '';
+                await deleteQuizFromFirebase(quizId);
+                alert('✅ Cuestionario eliminado');
             } catch (error) {
-                alert('Error al enviar: ' + error.message);
+                alert('❌ Error al eliminar: ' + error.message);
             }
         }
 
-        auth.onAuthStateChanged(function(user) {
-            if (user && state.view === 'login') {
-                state.user = user;
-                state.view = 'admin';
-                loadQuizzes();
-                render();
-            }
-        });
+        function generateQRCode(quiz, sessionId) {
+            const quizData = { quiz, sessionId };
+            const encoded = btoa(encodeURIComponent(JSON.stringify(quizData)));
+            const url = window.location.origin + window.location.pathname + '?q=' + encoded;
+            return 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(url);
+        }
 
-        window.addEventListener('load', function() {
-            const params = new URLSearchParams(window.location.search);
-            const encodedQuiz = params.get('q');
+        function activateQuiz(quiz) {
+            const sessionId = 'session_' + Date.now();
+            const qr = generateQRCode(quiz, sessionId);
             
-            if (encodedQuiz) {
-                try {
-                    const data = JSON.parse(atob(encodedQuiz));
-                    state.currentQuiz = data.quiz;
-                    state.sessionId = data.sessionId;
-                    state.view = 'participant';
-                } catch (e) {
-                    console.error('Error loading quiz:', e);
-                }
-            }
-            
-            render();
-        });
-    </script>
-</body>
-</html>
+            setState({ 
+                currentQuiz: quiz,
+                sessionId: sessionId,
+                qrCode: qr,
+                responses: {},
+                participantCount: 0,
+                view: 'dashboard'
+            });
+
+            loadResponses(sessionId, (responsesList) => {
+                const responsesObj = {};
+                responsesList.forEach(r => {
+                    responsesObj[r.id] = r;
+                });
+                
+                // Actualizar estado con contador correcto
+                const newCount = responsesList.length;
+                console.log('Participantes actuales:', newCount);
+                
+                // Actualizar estado sin skipRender para que se vea
+                st
