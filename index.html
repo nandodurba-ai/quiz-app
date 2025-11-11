@@ -3,38 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Interactivo</title>
+    <title>QuizApp - Cuestionarios en Tiempo Real</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js para gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
-        .btn-primary { background: #4F46E5; color: white; }
-        .btn-primary:hover { background: #4338CA; }
-        .btn-success { background: #10B981; color: white; }
-        .btn-success:hover { background: #059669; }
-        .btn-danger { background: #EF4444; color: white; }
-        .btn-danger:hover { background: #DC2626; }
-        .input { width: 100%; padding: 12px; border: 2px solid #E5E7EB; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
-        .input:focus { outline: none; border-color: #4F46E5; }
-        h1 { font-size: 28px; margin-bottom: 16px; color: #111827; }
-        h2 { font-size: 20px; margin-bottom: 12px; color: #374151; }
-        .quiz-item { border: 1px solid #E5E7EB; padding: 16px; border-radius: 8px; margin-bottom: 12px; }
-        .option-label { display: flex; align-items: center; gap: 12px; padding: 12px; border: 2px solid #E5E7EB; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
-        .option-label:hover { border-color: #4F46E5; }
-        .option-label.selected { background: #EEF2FF; border-color: #4F46E5; }
-        .loading { text-align: center; padding: 40px; color: #6B7280; }
+        /* Animaciones suaves */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .bar-animate {
+            transition: width 0.25s ease-out;
+        }
+        
+        /* Barra apilada custom */
+        .stacked-bar {
+            display: flex;
+            height: 40px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #e5e7eb;
+        }
+        
+        .stacked-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: white;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+        
+        .stacked-segment:hover {
+            filter: brightness(1.1);
+            cursor: pointer;
+        }
+        
+        /* Colores accesibles */
+        .color-opt-0 { background-color: #3b82f6; }
+        .color-opt-1 { background-color: #10b981; }
+        .color-opt-2 { background-color: #f59e0b; }
+        .color-opt-3 { background-color: #ef4444; }
+        
+        /* Sparkline mini */
+        .sparkline {
+            width: 80px;
+            height: 24px;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        /* Responsive grid */
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
     </style>
 </head>
-<body>
-    <div id="app"><div class="loading">Cargando...</div></div>
-    <script>
+<body class="bg-gray-50 min-h-screen">
+    <!-- App Container -->
+    <div id="app"></div>
+    
+    <!-- Modal Container -->
+    <div id="modalContainer"></div>
 
+    <script>
+        // ==========================================
+        // FIREBASE CONFIGURATION
+        // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyB1-qX4gDXs-WeSBaJu6Xhrvy8fVQ7vaes",
             authDomain: "medicia-65cee.firebaseapp.com",
@@ -45,260 +115,1225 @@
             appId: "1:640591572141:web:19d0f3d5935c05ebbf6a24",
             measurementId: "G-M5DZ6L0WL3"
         };
-
+        
         firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
         const auth = firebase.auth();
-
-        let state = {
-            view: 'login',
-            user: null,
-            quizzes: [],
-            currentQuiz: null,
-            sessionId: null,
-            participantName: '',
-            currentAnswers: {},
-            responses: {}
+        const db = firebase.database();
+        
+        // ==========================================
+        // GLOBAL STATE
+        // ==========================================
+        const state = {
+            currentUser: null,
+            currentView: 'login',
+            currentQuestionnaire: null,
+            questionnaires: [],
+            responses: [],
+            editingQuestionnaire: null,
+            dashboardInterval: null,
+            publicMode: false
         };
-
+        
+        // ==========================================
+        // UTILS
+        // ==========================================
+        
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+        
+        function formatDate(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleDateString('es-AR') + ' ' + date.toLocaleTimeString('es-AR', {hour: '2-digit', minute: '2-digit'});
+        }
+        
+        function throttle(func, delay) {
+            let lastCall = 0;
+            return function(...args) {
+                const now = Date.now();
+                if (now - lastCall >= delay) {
+                    lastCall = now;
+                    return func(...args);
+                }
+            };
+        }
+        
         function escapeHtml(text) {
-            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-
-        function render() {
-            const app = document.getElementById('app');
-            if (state.view === 'login') {
-                renderLogin(app);
-            } else if (state.view === 'admin') {
-                renderAdmin(app);
-            } else if (state.view === 'participant') {
-                renderParticipant(app);
-            } else if (state.view === 'thankyou') {
-                renderThankYou(app);
-            }
-        }
-
-        function renderLogin(app) {
-            app.innerHTML = '<div class="container" style="max-width: 400px; margin-top: 100px;">' +
-                '<div class="card">' +
-                '<h1 style="text-align: center; margin-bottom: 24px;">Quiz Interactivo</h1>' +
-                '<button class="btn btn-primary" style="width: 100%;" onclick="loginWithGoogle()">Continuar con Google</button>' +
-                '</div></div>';
-        }
-
-        function renderAdmin(app) {
-            let html = '<div class="container">' +
-                '<div class="card">' +
-                '<div style="display: flex; justify-content: space-between; align-items: center;">' +
-                '<h1>Mis Cuestionarios</h1>' +
-                '<button class="btn btn-danger" onclick="logout()">Salir</button>' +
-                '</div></div>' +
-                '<div class="card">' +
-                '<button class="btn btn-success" onclick="newQuiz()" style="margin-bottom: 20px;">+ Nuevo Quiz</button>';
-            
-            if (state.quizzes.length === 0) {
-                html += '<p style="text-align: center; color: #6B7280; padding: 40px;">No tienes quizzes. Crea uno nuevo.</p>';
-            } else {
-                for (let i = 0; i < state.quizzes.length; i++) {
-                    const quiz = state.quizzes[i];
-                    html += '<div class="quiz-item">' +
-                        '<h2>' + escapeHtml(quiz.title) + '</h2>' +
-                        '<p style="color: #6B7280; margin-bottom: 12px;">' + quiz.questions.length + ' preguntas</p>' +
-                        '<button class="btn btn-primary" onclick="activateQuiz('' + quiz.id + '')">Activar</button> ' +
-                        '<button class="btn btn-danger" onclick="deleteQuiz('' + quiz.id + '')">Borrar</button>' +
-                        '</div>';
+        
+        // ==========================================
+        // AUTHENTICATION
+        // ==========================================
+        
+        function initAuth() {
+            auth.onAuthStateChanged(function(user) {
+                if (user) {
+                    state.currentUser = {
+                        uid: user.uid,
+                        displayName: user.displayName,
+                        email: user.email,
+                        photoURL: user.photoURL
+                    };
+                    
+                    // Save user to database
+                    db.ref('users/' + user.uid).set({
+                        displayName: user.displayName,
+                        email: user.email,
+                        photoURL: user.photoURL,
+                        lastLogin: Date.now()
+                    });
+                    
+                    // Check if public mode
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const qId = urlParams.get('q');
+                    
+                    if (qId && !state.publicMode) {
+                        state.publicMode = true;
+                        loadPublicQuestionnaire(qId);
+                    } else if (!state.publicMode) {
+                        showView('dashboard');
+                    }
+                } else {
+                    state.currentUser = null;
+                    
+                    // Check if public mode
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const qId = urlParams.get('q');
+                    
+                    if (qId) {
+                        state.publicMode = true;
+                        loadPublicQuestionnaire(qId);
+                    } else {
+                        showView('login');
+                    }
                 }
+            });
+        }
+        
+        function loginWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).catch(function(error) {
+                alert('Error al iniciar sesión: ' + error.message);
+            });
+        }
+        
+        function logout() {
+            auth.signOut();
+        }
+        
+        // ==========================================
+        // ROUTER
+        // ==========================================
+        
+        function showView(viewName, data) {
+            state.currentView = viewName;
+            
+            // Clear intervals
+            if (state.dashboardInterval) {
+                clearInterval(state.dashboardInterval);
+                state.dashboardInterval = null;
             }
             
-            html += '</div></div>';
-            app.innerHTML = html;
-        }
-
-        function renderParticipant(app) {
-            let html = '<div class="container" style="max-width: 800px;">' +
-                '<div class="card">' +
-                '<h1>' + escapeHtml(state.currentQuiz.title) + '</h1>' +
-                '<p style="color: #6B7280; margin-bottom: 20px;">Responde todas las preguntas</p>' +
-                '<input type="text" id="participant-name" class="input" placeholder="Tu nombre" value="' + escapeHtml(state.participantName) + '">';
+            const app = document.getElementById('app');
             
-            for (let qIdx = 0; qIdx < state.currentQuiz.questions.length; qIdx++) {
-                const q = state.currentQuiz.questions[qIdx];
-                html += '<div style="margin-bottom: 24px; padding: 20px; background: #F9FAFB; border-radius: 8px;">' +
-                    '<h2>' + (qIdx + 1) + '. ' + escapeHtml(q.question) + '</h2>';
+            switch(viewName) {
+                case 'login':
+                    app.innerHTML = renderLogin();
+                    break;
+                case 'dashboard':
+                    loadUserQuestionnaires();
+                    break;
+                case 'create':
+                    app.innerHTML = renderCreateQuestionnaire();
+                    initCreateForm();
+                    break;
+                case 'edit':
+                    app.innerHTML = renderEditQuestionnaire(data);
+                    initEditForm();
+                    break;
+                case 'share':
+                    app.innerHTML = renderShare(data);
+                    break;
+                case 'respond':
+                    app.innerHTML = renderRespondView(data);
+                    break;
+                case 'results-view':
+                    app.innerHTML = renderResultsView(data);
+                    break;
+                case 'live-dashboard':
+                    app.innerHTML = renderLiveDashboard(data);
+                    startLiveDashboard(data);
+                    break;
+            }
+        }
+        
+        // ==========================================
+        // VIEWS - LOGIN
+        // ==========================================
+        
+        function renderLogin() {
+            return '<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">' +
+                '<div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 fade-in">' +
+                '<div class="text-center mb-8">' +
+                '<h1 class="text-4xl font-bold text-gray-800 mb-2">📊 QuizApp</h1>' +
+                '<p class="text-gray-600">Cuestionarios y encuestas en tiempo real</p>' +
+                '</div>' +
+                '<button onclick="loginWithGoogle()" class="w-full bg-white border-2 border-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-50 transition duration-200 flex items-center justify-center gap-3">' +
+                '<svg class="w-6 h-6" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>' +
+                'Continuar con Google' +
+                '</button>' +
+                '<p class="text-center text-sm text-gray-500 mt-6">Crea encuestas y cuestionarios. Obtén resultados en tiempo real.</p>' +
+                '</div>' +
+                '</div>';
+        }
+        
+        // ==========================================
+        // VIEWS - DASHBOARD (My Questionnaires)
+        // ==========================================
+        
+        function loadUserQuestionnaires() {
+            if (!state.currentUser) return;
+            
+            db.ref('questionnaires').orderByChild('createdBy').equalTo(state.currentUser.uid).once('value', function(snapshot) {
+                state.questionnaires = [];
+                snapshot.forEach(function(child) {
+                    state.questionnaires.push({
+                        id: child.key,
+                        ...child.val()
+                    });
+                });
                 
-                for (let oIdx = 0; oIdx < q.options.length; oIdx++) {
-                    const opt = q.options[oIdx];
-                    const selected = (state.currentAnswers[qIdx] === oIdx);
-                    const className = selected ? 'option-label selected' : 'option-label';
-                    html += '<label class="' + className + '">' +
-                        '<input type="radio" name="q' + qIdx + '" ' + (selected ? 'checked' : '') + ' onclick="selectAnswer(' + qIdx + ',' + oIdx + ')">' +
-                        '<span>' + escapeHtml(opt) + '</span>' +
-                        '</label>';
+                // Sort by date
+                state.questionnaires.sort(function(a, b) { return b.createdAt - a.createdAt; });
+                
+                document.getElementById('app').innerHTML = renderDashboard();
+            });
+        }
+        
+        function renderDashboard() {
+            let html = '<div class="min-h-screen bg-gray-50">';
+            
+            // Header
+            html += '<header class="bg-white shadow-sm border-b border-gray-200">' +
+                '<div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">' +
+                '<div class="flex items-center gap-3">' +
+                '<h1 class="text-2xl font-bold text-gray-800">📊 Mis Cuestionarios</h1>' +
+                '</div>' +
+                '<div class="flex items-center gap-4">' +
+                '<img src="' + state.currentUser.photoURL + '" class="w-10 h-10 rounded-full border-2 border-blue-500">' +
+                '<button onclick="logout()" class="text-sm text-gray-600 hover:text-gray-800">Cerrar sesión</button>' +
+                '</div>' +
+                '</div>' +
+                '</header>';
+            
+            // Content
+            html += '<main class="max-w-7xl mx-auto px-4 py-8">';
+            
+            // Create button
+            html += '<div class="mb-6">' +
+                '<button onclick="showView(\'create\')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200">' +
+                '➕ Crear Nuevo Cuestionario' +
+                '</button>' +
+                '</div>';
+            
+            // Questionnaires list
+            if (state.questionnaires.length === 0) {
+                html += '<div class="bg-white rounded-lg shadow p-12 text-center">' +
+                    '<div class="text-6xl mb-4">📝</div>' +
+                    '<h3 class="text-xl font-semibold text-gray-700 mb-2">No hay cuestionarios todavía</h3>' +
+                    '<p class="text-gray-500">Crea tu primer cuestionario para comenzar</p>' +
+                    '</div>';
+            } else {
+                html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
+                
+                for (let i = 0; i < state.questionnaires.length; i++) {
+                    const q = state.questionnaires[i];
+                    const typeLabel = q.type === 'quiz' ? '🎯 Quiz' : '📊 Encuesta';
+                    const typeBg = q.type === 'quiz' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+                    
+                    html += '<div class="bg-white rounded-lg shadow-md hover:shadow-lg transition duration-200 overflow-hidden">' +
+                        '<div class="p-6">' +
+                        '<div class="flex items-start justify-between mb-3">' +
+                        '<span class="px-3 py-1 rounded-full text-xs font-semibold ' + typeBg + '">' + typeLabel + '</span>' +
+                        '<button onclick="deleteQuestionnaire(\'' + q.id + '\')" class="text-gray-400 hover:text-red-600">' +
+                        '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>' +
+                        '</button>' +
+                        '</div>' +
+                        '<h3 class="text-lg font-bold text-gray-800 mb-2">' + escapeHtml(q.title) + '</h3>' +
+                        '<p class="text-sm text-gray-600 mb-4 line-clamp-2">' + escapeHtml(q.description || 'Sin descripción') + '</p>' +
+                        '<div class="text-xs text-gray-500 mb-4">' +
+                        '<span>📅 ' + formatDate(q.createdAt) + '</span> • ' +
+                        '<span>' + q.questions.length + ' preguntas</span>' +
+                        '</div>' +
+                        '<div class="flex gap-2">' +
+                        '<button onclick="showView(\'live-dashboard\', \'' + q.id + '\')" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition duration-200">' +
+                        '📊 Dashboard' +
+                        '</button>' +
+                        '<button onclick="showView(\'share\', \'' + q.id + '\')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition duration-200">' +
+                        '🔗 Compartir' +
+                        '</button>' +
+                        '</div>' +
+                        '<div class="flex gap-2 mt-2">' +
+                        '<button onclick="showView(\'edit\', \'' + q.id + '\')" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-2 px-4 rounded-lg transition duration-200">' +
+                        '✏️ Editar' +
+                        '</button>' +
+                        '<button onclick="clearResponses(\'' + q.id + '\')" class="flex-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm font-semibold py-2 px-4 rounded-lg transition duration-200">' +
+                        '🗑️ Limpiar' +
+                        '</button>' +
+                        '</div>' +
+                        '</div>' +
+                        '</div>';
                 }
                 
                 html += '</div>';
             }
             
-            html += '<button class="btn btn-success" style="width: 100%;" onclick="submitAnswers()">Enviar Respuestas</button>' +
-                '</div></div>';
+            html += '</main></div>';
             
-            app.innerHTML = html;
+            return html;
+        }
+        
+        // ==========================================
+        // VIEWS - CREATE QUESTIONNAIRE
+        // ==========================================
+        
+        function renderCreateQuestionnaire() {
+            return '<div class="min-h-screen bg-gray-50">' +
+                '<header class="bg-white shadow-sm border-b border-gray-200">' +
+                '<div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">' +
+                '<h1 class="text-2xl font-bold text-gray-800">➕ Crear Cuestionario</h1>' +
+                '<button onclick="showView(\'dashboard\')" class="text-gray-600 hover:text-gray-800">← Volver</button>' +
+                '</div>' +
+                '</header>' +
+                '<main class="max-w-4xl mx-auto px-4 py-8">' +
+                '<div class="bg-white rounded-lg shadow-md p-6">' +
+                '<form id="createForm" onsubmit="saveQuestionnaire(event)">' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Título</label>' +
+                '<input type="text" id="title" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Ej: Encuesta de Satisfacción">' +
+                '</div>' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Descripción (opcional)</label>' +
+                '<textarea id="description" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Describe el propósito de este cuestionario"></textarea>' +
+                '</div>' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Tipo</label>' +
+                '<div class="flex gap-4">' +
+                '<label class="flex items-center">' +
+                '<input type="radio" name="type" value="survey" checked class="mr-2">' +
+                '<span>📊 Encuesta (sin respuestas correctas)</span>' +
+                '</label>' +
+                '<label class="flex items-center">' +
+                '<input type="radio" name="type" value="quiz" class="mr-2">' +
+                '<span>🎯 Quiz (con respuestas correctas)</span>' +
+                '</label>' +
+                '</div>' +
+                '</div>' +
+                '<hr class="my-6">' +
+                '<div class="mb-4 flex justify-between items-center">' +
+                '<h3 class="text-lg font-bold text-gray-800">Preguntas</h3>' +
+                '<button type="button" onclick="addQuestion()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg">' +
+                '➕ Agregar Pregunta' +
+                '</button>' +
+                '</div>' +
+                '<div id="questionsContainer"></div>' +
+                '<div class="mt-6 flex gap-4">' +
+                '<button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg">' +
+                '💾 Guardar Cuestionario' +
+                '</button>' +
+                '<button type="button" onclick="showView(\'dashboard\')" class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">' +
+                'Cancelar' +
+                '</button>' +
+                '</div>' +
+                '</form>' +
+                '</div>' +
+                '</main>' +
+                '</div>';
+        }
+        
+        function initCreateForm() {
+            // Add first question by default
+            addQuestion();
+        }
+        
+        let questionCounter = 0;
+        
+        function addQuestion() {
+            const container = document.getElementById('questionsContainer');
+            const qId = 'q_' + questionCounter++;
             
-            const nameInput = document.getElementById('participant-name');
-            if (nameInput) {
-                nameInput.addEventListener('input', function(e) {
-                    state.participantName = e.target.value;
-                });
+            const html = '<div class="bg-gray-50 rounded-lg p-4 mb-4 question-item" data-qid="' + qId + '">' +
+                '<div class="flex justify-between items-start mb-3">' +
+                '<h4 class="font-semibold text-gray-700">Pregunta ' + questionCounter + '</h4>' +
+                '<button type="button" onclick="removeQuestion(\'' + qId + '\')" class="text-red-600 hover:text-red-800 text-sm">Eliminar</button>' +
+                '</div>' +
+                '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3 question-text" placeholder="Escribe tu pregunta" required>' +
+                '<div class="space-y-2 options-container">' +
+                '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg option-input" placeholder="Opción 1" required>' +
+                '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg option-input" placeholder="Opción 2" required>' +
+                '</div>' +
+                '<button type="button" onclick="addOption(\'' + qId + '\')" class="mt-2 text-sm text-blue-600 hover:text-blue-800">+ Agregar opción</button>' +
+                '</div>';
+            
+            container.insertAdjacentHTML('beforeend', html);
+        }
+        
+        function removeQuestion(qId) {
+            const element = document.querySelector('[data-qid="' + qId + '"]');
+            if (element) {
+                element.remove();
+                updateQuestionNumbers();
             }
         }
-
-        function renderThankYou(app) {
-            app.innerHTML = '<div class="container" style="max-width: 500px; margin-top: 100px;">' +
-                '<div class="card" style="text-align: center;">' +
-                '<div style="font-size: 64px; margin-bottom: 20px;">✅</div>' +
-                '<h1>¡Gracias por participar!</h1>' +
-                '<p style="color: #6B7280; margin-top: 12px;">Tus respuestas han sido enviadas</p>' +
-                '</div></div>';
-        }
-
-        function selectAnswer(qIdx, oIdx) {
-            state.currentAnswers[qIdx] = oIdx;
-            render();
-        }
-
-        async function loginWithGoogle() {
-            try {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                const result = await auth.signInWithPopup(provider);
-                state.user = result.user;
-                state.view = 'admin';
-                loadQuizzes();
-            } catch (error) {
-                if (error.code !== 'auth/popup-closed-by-user') {
-                    alert('Error: ' + error.message);
-                }
-            }
-        }
-
-        function logout() {
-            auth.signOut();
-            state.user = null;
-            state.view = 'login';
-            state.quizzes = [];
-            render();
-        }
-
-        function loadQuizzes() {
-            if (!state.user) return;
-            database.ref('quizzes/' + state.user.uid).on('value', function(snapshot) {
-                const data = snapshot.val();
-                state.quizzes = [];
-                if (data) {
-                    for (let key in data) {
-                        state.quizzes.push({
-                            id: key,
-                            title: data[key].title || 'Sin título',
-                            questions: data[key].questions || []
-                        });
-                    }
-                }
-                if (state.view === 'admin') render();
+        
+        function updateQuestionNumbers() {
+            const questions = document.querySelectorAll('.question-item');
+            questions.forEach(function(q, index) {
+                q.querySelector('h4').textContent = 'Pregunta ' + (index + 1);
             });
         }
-
-        function newQuiz() {
-            const title = prompt('Título del quiz:');
-            if (!title) return;
+        
+        function addOption(qId) {
+            const question = document.querySelector('[data-qid="' + qId + '"]');
+            const container = question.querySelector('.options-container');
+            const currentOptions = container.querySelectorAll('.option-input').length;
             
-            const quizId = 'quiz_' + Date.now();
-            database.ref('quizzes/' + state.user.uid + '/' + quizId).set({
-                title: title,
-                questions: [{
-                    question: '¿Pregunta de ejemplo?',
-                    options: ['Opción 1', 'Opción 2', 'Opción 3', 'Opción 4'],
-                    correctAnswer: 0,
-                    hasCorrectAnswer: false
-                }],
-                createdAt: new Date().toISOString()
-            });
-        }
-
-        function deleteQuiz(quizId) {
-            if (!confirm('¿Borrar este quiz?')) return;
-            database.ref('quizzes/' + state.user.uid + '/' + quizId).remove();
-        }
-
-        function activateQuiz(quizId) {
-            const quiz = state.quizzes.find(function(q) { return q.id === quizId; });
-            if (!quiz) return;
-            
-            state.currentQuiz = quiz;
-            state.sessionId = 'session_' + Date.now();
-            
-            const url = window.location.origin + window.location.pathname + '?q=' + 
-                        btoa(JSON.stringify({quiz: quiz, sessionId: state.sessionId}));
-            
-            alert('Quiz activado!\n\nComparte este link:\n' + url);
-        }
-
-        async function submitAnswers() {
-            if (!state.participantName.trim()) {
-                alert('Por favor ingresa tu nombre');
+            if (currentOptions >= 4) {
+                alert('Máximo 4 opciones por pregunta');
                 return;
             }
             
-            const answered = Object.keys(state.currentAnswers).length;
-            if (answered < state.currentQuiz.questions.length) {
-                alert('Por favor responde todas las preguntas (' + answered + '/' + state.currentQuiz.questions.length + ')');
-                return;
-            }
+            const html = '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg option-input" placeholder="Opción ' + (currentOptions + 1) + '" required>';
+            container.insertAdjacentHTML('beforeend', html);
+        }
+        
+        function saveQuestionnaire(event) {
+            event.preventDefault();
             
-            try {
-                await database.ref('responses/' + state.sessionId).push({
-                    name: state.participantName,
-                    answers: state.currentAnswers,
-                    timestamp: new Date().toISOString()
+            const title = document.getElementById('title').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const type = document.querySelector('input[name="type"]:checked').value;
+            
+            const questions = [];
+            const questionElements = document.querySelectorAll('.question-item');
+            
+            questionElements.forEach(function(qEl, index) {
+                const text = qEl.querySelector('.question-text').value.trim();
+                const optionInputs = qEl.querySelectorAll('.option-input');
+                const options = [];
+                
+                optionInputs.forEach(function(opt) {
+                    const val = opt.value.trim();
+                    if (val) options.push(val);
                 });
                 
-                state.view = 'thankyou';
-                state.currentAnswers = {};
-                state.participantName = '';
-                render();
-            } catch (error) {
-                alert('Error al enviar: ' + error.message);
+                if (options.length < 2) {
+                    alert('Cada pregunta debe tener al menos 2 opciones');
+                    return;
+                }
+                
+                questions.push({
+                    id: 'q' + index,
+                    text: text,
+                    options: options,
+                    correctAnswer: type === 'quiz' ? 0 : null
+                });
+            });
+            
+            if (questions.length === 0) {
+                alert('Agrega al menos una pregunta');
+                return;
+            }
+            
+            const questionnaireData = {
+                title: title,
+                description: description,
+                type: type,
+                createdBy: state.currentUser.uid,
+                createdAt: Date.now(),
+                questions: questions
+            };
+            
+            const newRef = db.ref('questionnaires').push();
+            newRef.set(questionnaireData).then(function() {
+                alert('✅ Cuestionario creado exitosamente');
+                showView('dashboard');
+            }).catch(function(error) {
+                alert('Error al guardar: ' + error.message);
+            });
+        }
+        
+        // ==========================================
+        // VIEWS - EDIT QUESTIONNAIRE
+        // ==========================================
+        
+        function renderEditQuestionnaire(qId) {
+            const q = state.questionnaires.find(function(item) { return item.id === qId; });
+            if (!q) return '<div>Cuestionario no encontrado</div>';
+            
+            state.editingQuestionnaire = q;
+            
+            let html = '<div class="min-h-screen bg-gray-50">' +
+                '<header class="bg-white shadow-sm border-b border-gray-200">' +
+                '<div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">' +
+                '<h1 class="text-2xl font-bold text-gray-800">✏️ Editar Cuestionario</h1>' +
+                '<button onclick="showView(\'dashboard\')" class="text-gray-600 hover:text-gray-800">← Volver</button>' +
+                '</div>' +
+                '</header>' +
+                '<main class="max-w-4xl mx-auto px-4 py-8">' +
+                '<div class="bg-white rounded-lg shadow-md p-6">' +
+                '<form id="editForm" onsubmit="updateQuestionnaire(event)">' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Título</label>' +
+                '<input type="text" id="editTitle" value="' + escapeHtml(q.title) + '" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">' +
+                '</div>' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Descripción (opcional)</label>' +
+                '<textarea id="editDescription" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">' + escapeHtml(q.description || '') + '</textarea>' +
+                '</div>' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Tipo</label>' +
+                '<div class="flex gap-4">' +
+                '<label class="flex items-center">' +
+                '<input type="radio" name="editType" value="survey" ' + (q.type === 'survey' ? 'checked' : '') + ' class="mr-2">' +
+                '<span>📊 Encuesta</span>' +
+                '</label>' +
+                '<label class="flex items-center">' +
+                '<input type="radio" name="editType" value="quiz" ' + (q.type === 'quiz' ? 'checked' : '') + ' class="mr-2">' +
+                '<span>🎯 Quiz</span>' +
+                '</label>' +
+                '</div>' +
+                '</div>' +
+                '<hr class="my-6">' +
+                '<div class="mb-4 flex justify-between items-center">' +
+                '<h3 class="text-lg font-bold text-gray-800">Preguntas</h3>' +
+                '<button type="button" onclick="addQuestionEdit()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg">' +
+                '➕ Agregar Pregunta' +
+                '</button>' +
+                '</div>' +
+                '<div id="editQuestionsContainer">';
+            
+            // Render existing questions
+            for (let i = 0; i < q.questions.length; i++) {
+                const question = q.questions[i];
+                const qId2 = 'eq_' + i;
+                
+                html += '<div class="bg-gray-50 rounded-lg p-4 mb-4 question-item" data-qid="' + qId2 + '">' +
+                    '<div class="flex justify-between items-start mb-3">' +
+                    '<h4 class="font-semibold text-gray-700">Pregunta ' + (i + 1) + '</h4>' +
+                    '<button type="button" onclick="removeQuestionEdit(\'' + qId2 + '\')" class="text-red-600 hover:text-red-800 text-sm">Eliminar</button>' +
+                    '</div>' +
+                    '<input type="text" value="' + escapeHtml(question.text) + '" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3 question-text" placeholder="Escribe tu pregunta" required>' +
+                    '<div class="space-y-2 options-container">';
+                
+                for (let j = 0; j < question.options.length; j++) {
+                    html += '<input type="text" value="' + escapeHtml(question.options[j]) + '" class="w-full px-4 py-2 border border-gray-300 rounded-lg option-input" placeholder="Opción ' + (j + 1) + '" required>';
+                }
+                
+                html += '</div>' +
+                    '<button type="button" onclick="addOptionEdit(\'' + qId2 + '\')" class="mt-2 text-sm text-blue-600 hover:text-blue-800">+ Agregar opción</button>' +
+                    '</div>';
+            }
+            
+            html += '</div>' +
+                '<div class="mt-6 flex gap-4">' +
+                '<button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg">' +
+                '💾 Guardar Cambios' +
+                '</button>' +
+                '<button type="button" onclick="showView(\'dashboard\')" class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">' +
+                'Cancelar' +
+                '</button>' +
+                '</div>' +
+                '</form>' +
+                '</div>' +
+                '</main>' +
+                '</div>';
+            
+            return html;
+        }
+        
+        function initEditForm() {
+            questionCounter = state.editingQuestionnaire.questions.length;
+        }
+        
+        function addQuestionEdit() {
+            const container = document.getElementById('editQuestionsContainer');
+            const qId = 'eq_' + questionCounter++;
+            
+            const html = '<div class="bg-gray-50 rounded-lg p-4 mb-4 question-item" data-qid="' + qId + '">' +
+                '<div class="flex justify-between items-start mb-3">' +
+                '<h4 class="font-semibold text-gray-700">Pregunta ' + questionCounter + '</h4>' +
+                '<button type="button" onclick="removeQuestionEdit(\'' + qId + '\')" class="text-red-600 hover:text-red-800 text-sm">Eliminar</button>' +
+                '</div>' +
+                '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3 question-text" placeholder="Escribe tu pregunta" required>' +
+                '<div class="space-y-2 options-container">' +
+                '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg option-input" placeholder="Opción 1" required>' +
+                '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg option-input" placeholder="Opción 2" required>' +
+                '</div>' +
+                '<button type="button" onclick="addOptionEdit(\'' + qId + '\')" class="mt-2 text-sm text-blue-600 hover:text-blue-800">+ Agregar opción</button>' +
+                '</div>';
+            
+            container.insertAdjacentHTML('beforeend', html);
+            updateQuestionNumbers();
+        }
+        
+        function removeQuestionEdit(qId) {
+            const element = document.querySelector('[data-qid="' + qId + '"]');
+            if (element) {
+                element.remove();
+                updateQuestionNumbers();
             }
         }
-
-        auth.onAuthStateChanged(function(user) {
-            if (user && state.view === 'login') {
-                state.user = user;
-                state.view = 'admin';
-                loadQuizzes();
-                render();
-            }
-        });
-
-        window.addEventListener('load', function() {
-            const params = new URLSearchParams(window.location.search);
-            const encodedQuiz = params.get('q');
+        
+        function addOptionEdit(qId) {
+            const question = document.querySelector('[data-qid="' + qId + '"]');
+            const container = question.querySelector('.options-container');
+            const currentOptions = container.querySelectorAll('.option-input').length;
             
-            if (encodedQuiz) {
-                try {
-                    const data = JSON.parse(atob(encodedQuiz));
-                    state.currentQuiz = data.quiz;
-                    state.sessionId = data.sessionId;
-                    state.view = 'participant';
-                } catch (e) {
-                    console.error('Error:', e);
+            if (currentOptions >= 4) {
+                alert('Máximo 4 opciones por pregunta');
+                return;
+            }
+            
+            const html = '<input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg option-input" placeholder="Opción ' + (currentOptions + 1) + '" required>';
+            container.insertAdjacentHTML('beforeend', html);
+        }
+        
+        function updateQuestionnaire(event) {
+            event.preventDefault();
+            
+            const title = document.getElementById('editTitle').value.trim();
+            const description = document.getElementById('editDescription').value.trim();
+            const type = document.querySelector('input[name="editType"]:checked').value;
+            
+            const questions = [];
+            const questionElements = document.querySelectorAll('.question-item');
+            
+            questionElements.forEach(function(qEl, index) {
+                const text = qEl.querySelector('.question-text').value.trim();
+                const optionInputs = qEl.querySelectorAll('.option-input');
+                const options = [];
+                
+                optionInputs.forEach(function(opt) {
+                    const val = opt.value.trim();
+                    if (val) options.push(val);
+                });
+                
+                if (options.length < 2) {
+                    alert('Cada pregunta debe tener al menos 2 opciones');
+                    return;
+                }
+                
+                questions.push({
+                    id: 'q' + index,
+                    text: text,
+                    options: options,
+                    correctAnswer: type === 'quiz' ? 0 : null
+                });
+            });
+            
+            if (questions.length === 0) {
+                alert('Agrega al menos una pregunta');
+                return;
+            }
+            
+            const updatedData = {
+                title: title,
+                description: description,
+                type: type,
+                questions: questions,
+                updatedAt: Date.now()
+            };
+            
+            db.ref('questionnaires/' + state.editingQuestionnaire.id).update(updatedData).then(function() {
+                alert('✅ Cuestionario actualizado exitosamente');
+                showView('dashboard');
+            }).catch(function(error) {
+                alert('Error al actualizar: ' + error.message);
+            });
+        }
+        
+        // ==========================================
+        // QUESTIONNAIRE ACTIONS
+        // ==========================================
+        
+        function deleteQuestionnaire(qId) {
+            if (!confirm('¿Estás seguro de que deseas eliminar este cuestionario? Esta acción no se puede deshacer.')) {
+                return;
+            }
+            
+            // Delete questionnaire
+            db.ref('questionnaires/' + qId).remove();
+            
+            // Delete responses
+            db.ref('responses/' + qId).remove();
+            
+            // Delete stats
+            db.ref('stats/' + qId).remove();
+            
+            alert('✅ Cuestionario eliminado');
+            showView('dashboard');
+        }
+        
+        function clearResponses(qId) {
+            if (!confirm('¿Estás seguro de que deseas limpiar todas las respuestas? Las preguntas se mantendrán intactas.')) {
+                return;
+            }
+            
+            // Delete responses
+            db.ref('responses/' + qId).remove();
+            
+            // Delete stats
+            db.ref('stats/' + qId).remove();
+            
+            alert('✅ Respuestas eliminadas');
+            showView('dashboard');
+        }
+        
+        // ==========================================
+        // VIEWS - SHARE
+        // ==========================================
+        
+        function renderShare(qId) {
+            const q = state.questionnaires.find(function(item) { return item.id === qId; });
+            if (!q) return '<div>Cuestionario no encontrado</div>';
+            
+            const baseUrl = window.location.origin + window.location.pathname;
+            const shareUrl = baseUrl + '?q=' + qId;
+            const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(shareUrl);
+            
+            return '<div class="min-h-screen bg-gray-50">' +
+                '<header class="bg-white shadow-sm border-b border-gray-200">' +
+                '<div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">' +
+                '<h1 class="text-2xl font-bold text-gray-800">🔗 Compartir Cuestionario</h1>' +
+                '<button onclick="showView(\'dashboard\')" class="text-gray-600 hover:text-gray-800">← Volver</button>' +
+                '</div>' +
+                '</header>' +
+                '<main class="max-w-4xl mx-auto px-4 py-8">' +
+                '<div class="bg-white rounded-lg shadow-md p-6">' +
+                '<h2 class="text-xl font-bold text-gray-800 mb-4">' + escapeHtml(q.title) + '</h2>' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Link para compartir</label>' +
+                '<div class="flex gap-2">' +
+                '<input type="text" id="shareUrl" value="' + shareUrl + '" readonly class="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">' +
+                '<button onclick="copyToClipboard()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg">' +
+                '📋 Copiar' +
+                '</button>' +
+                '</div>' +
+                '</div>' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Código QR</label>' +
+                '<div class="flex justify-center bg-gray-50 p-6 rounded-lg">' +
+                '<img src="' + qrUrl + '" alt="QR Code" class="border-4 border-white shadow-lg">' +
+                '</div>' +
+                '</div>' +
+                '<div class="text-center text-sm text-gray-600">' +
+                '<p>Comparte este link o código QR con los participantes</p>' +
+                '</div>' +
+                '</div>' +
+                '</main>' +
+                '</div>';
+        }
+        
+        function copyToClipboard() {
+            const input = document.getElementById('shareUrl');
+            input.select();
+            document.execCommand('copy');
+            alert('✅ Link copiado al portapapeles');
+        }
+        
+        // ==========================================
+        // VIEWS - PUBLIC RESPOND
+        // ==========================================
+        
+        function loadPublicQuestionnaire(qId) {
+            db.ref('questionnaires/' + qId).once('value', function(snapshot) {
+                if (!snapshot.exists()) {
+                    document.getElementById('app').innerHTML = '<div class="min-h-screen flex items-center justify-center bg-gray-50">' +
+                        '<div class="text-center">' +
+                        '<h1 class="text-2xl font-bold text-gray-800 mb-4">❌ Cuestionario no encontrado</h1>' +
+                        '<p class="text-gray-600">El link puede estar incorrecto o el cuestionario fue eliminado</p>' +
+                        '</div>' +
+                        '</div>';
+                    return;
+                }
+                
+                state.currentQuestionnaire = {
+                    id: qId,
+                    ...snapshot.val()
+                };
+                
+                showView('respond', qId);
+            });
+        }
+        
+        function renderRespondView(qId) {
+            const q = state.currentQuestionnaire;
+            if (!q) return '<div>Cargando...</div>';
+            
+            const typeLabel = q.type === 'quiz' ? '🎯 Quiz' : '📊 Encuesta';
+            
+            let html = '<div class="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 py-8">' +
+                '<div class="max-w-2xl mx-auto px-4">' +
+                '<div class="bg-white rounded-2xl shadow-2xl p-8 fade-in">' +
+                '<div class="text-center mb-8">' +
+                '<span class="inline-block px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-4">' + typeLabel + '</span>' +
+                '<h1 class="text-3xl font-bold text-gray-800 mb-2">' + escapeHtml(q.title) + '</h1>';
+            
+            if (q.description) {
+                html += '<p class="text-gray-600">' + escapeHtml(q.description) + '</p>';
+            }
+            
+            html += '</div>' +
+                '<form id="respondForm" onsubmit="submitResponse(event)">' +
+                '<div class="mb-6">' +
+                '<label class="block text-sm font-semibold text-gray-700 mb-2">Tu nombre (opcional)</label>' +
+                '<input type="text" id="respondentName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Anónimo">' +
+                '</div>' +
+                '<hr class="my-6">';
+            
+            // Render questions
+            for (let i = 0; i < q.questions.length; i++) {
+                const question = q.questions[i];
+                
+                html += '<div class="mb-6">' +
+                    '<h3 class="text-lg font-semibold text-gray-800 mb-3">' + (i + 1) + '. ' + escapeHtml(question.text) + '</h3>' +
+                    '<div class="space-y-2">';
+                
+                for (let j = 0; j < question.options.length; j++) {
+                    const option = question.options[j];
+                    html += '<label class="flex items-center p-3 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition">' +
+                        '<input type="radio" name="q' + i + '" value="' + j + '" required class="mr-3">' +
+                        '<span class="text-gray-700">' + escapeHtml(option) + '</span>' +
+                        '</label>';
+                }
+                
+                html += '</div></div>';
+            }
+            
+            html += '<button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg text-lg shadow-lg transition duration-200">' +
+                '✅ Enviar Respuestas' +
+                '</button>' +
+                '</form>' +
+                '</div>' +
+                '</div>' +
+                '</div>';
+            
+            return html;
+        }
+        
+        function submitResponse(event) {
+            event.preventDefault();
+            
+            const q = state.currentQuestionnaire;
+            const respondentName = document.getElementById('respondentName').value.trim() || 'Anónimo';
+            
+            const answers = {};
+            let allAnswered = true;
+            
+            for (let i = 0; i < q.questions.length; i++) {
+                const selected = document.querySelector('input[name="q' + i + '"]:checked');
+                if (!selected) {
+                    allAnswered = false;
+                    break;
+                }
+                answers['q' + i] = parseInt(selected.value);
+            }
+            
+            if (!allAnswered) {
+                alert('Por favor responde todas las preguntas');
+                return;
+            }
+            
+            const responseData = {
+                respondentName: respondentName,
+                timestamp: Date.now(),
+                answers: answers
+            };
+            
+            // Save response
+            db.ref('responses/' + q.id).push(responseData).then(function() {
+                // Update stats
+                updateStats(q.id, answers);
+                
+                // Show results
+                showView('results-view', q.id);
+            }).catch(function(error) {
+                alert('Error al enviar respuesta: ' + error.message);
+            });
+        }
+        
+        function updateStats(qId, answers) {
+            db.ref('stats/' + qId).transaction(function(current) {
+                if (!current) {
+                    current = {
+                        totalResponses: 0,
+                        lastUpdate: Date.now(),
+                        questionStats: {}
+                    };
+                }
+                
+                current.totalResponses = (current.totalResponses || 0) + 1;
+                current.lastUpdate = Date.now();
+                
+                for (const qKey in answers) {
+                    if (!current.questionStats[qKey]) {
+                        current.questionStats[qKey] = {};
+                    }
+                    
+                    const optIndex = 'opt' + answers[qKey];
+                    current.questionStats[qKey][optIndex] = (current.questionStats[qKey][optIndex] || 0) + 1;
+                }
+                
+                return current;
+            });
+        }
+        
+        // ==========================================
+        // VIEWS - RESULTS VIEW (after responding)
+        // ==========================================
+        
+        function renderResultsView(qId) {
+            const q = state.currentQuestionnaire;
+            
+            return '<div class="min-h-screen bg-gray-50 py-8">' +
+                '<div class="max-w-4xl mx-auto px-4">' +
+                '<div class="bg-white rounded-2xl shadow-lg p-8 fade-in">' +
+                '<div class="text-center mb-8">' +
+                '<div class="text-6xl mb-4">✅</div>' +
+                '<h1 class="text-3xl font-bold text-gray-800 mb-2">¡Respuesta enviada!</h1>' +
+                '<p class="text-gray-600">Gracias por participar en esta ' + (q.type === 'quiz' ? 'quiz' : 'encuesta') + '</p>' +
+                '</div>' +
+                '<div id="resultsContainer" class="space-y-6">' +
+                '<p class="text-center text-gray-500">Cargando resultados...</p>' +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '</div>';
+        }
+        
+        // ==========================================
+        // VIEWS - LIVE DASHBOARD
+        // ==========================================
+        
+        function renderLiveDashboard(qId) {
+            const q = state.questionnaires.find(function(item) { return item.id === qId; });
+            if (!q) return '<div>Cuestionario no encontrado</div>';
+            
+            let html = '<div class="min-h-screen bg-gray-50">' +
+                '<header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">' +
+                '<div class="max-w-7xl mx-auto px-4 py-4">' +
+                '<div class="flex justify-between items-center mb-4">' +
+                '<h1 class="text-2xl font-bold text-gray-800">📊 ' + escapeHtml(q.title) + '</h1>' +
+                '<div class="flex gap-2">' +
+                '<button onclick="exportToCSV(\'' + qId + '\')" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">' +
+                '📥 Exportar CSV' +
+                '</button>' +
+                '<button onclick="showView(\'dashboard\')" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg text-sm">' +
+                '← Volver' +
+                '</button>' +
+                '</div>' +
+                '</div>' +
+                '<div id="statsHeader" class="flex gap-6 text-sm">' +
+                '<div class="flex items-center gap-2">' +
+                '<span class="font-semibold text-gray-700">Total:</span>' +
+                '<span id="totalResponses" class="text-2xl font-bold text-blue-600">0</span>' +
+                '</div>' +
+                '<div class="flex items-center gap-2">' +
+                '<span class="font-semibold text-gray-700">Respuestas/min:</span>' +
+                '<span id="responsesPerMin" class="text-xl font-bold text-green-600">0</span>' +
+                '</div>' +
+                '<div class="flex items-center gap-2">' +
+                '<span class="font-semibold text-gray-700">Última actualización:</span>' +
+                '<span id="lastUpdate" class="text-gray-600">--</span>' +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '</header>' +
+                '<main class="max-w-7xl mx-auto px-4 py-6">' +
+                '<div class="flex flex-col lg:flex-row gap-6">' +
+                '<div class="flex-1">' +
+                '<h2 class="text-lg font-bold text-gray-800 mb-4">Resultados por Pregunta</h2>' +
+                '<div id="questionsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4 dashboard-grid"></div>' +
+                '</div>' +
+                '<div class="lg:w-80">' +
+                '<div class="bg-white rounded-lg shadow p-4 sticky top-24">' +
+                '<h3 class="font-bold text-gray-800 mb-4">📊 Resumen</h3>' +
+                '<div id="summaryContainer"></div>' +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '</main>' +
+                '</div>';
+            
+            return html;
+        }
+        
+        function startLiveDashboard(qId) {
+            const q = state.questionnaires.find(function(item) { return item.id === qId; });
+            if (!q) return;
+            
+            // Initial load
+            updateDashboard(qId, q);
+            
+            // Update every 2 seconds
+            state.dashboardInterval = setInterval(function() {
+                updateDashboard(qId, q);
+            }, 2000);
+        }
+        
+        function updateDashboard(qId, q) {
+            db.ref('stats/' + qId).once('value', function(snapshot) {
+                const stats = snapshot.val();
+                
+                if (!stats) {
+                    document.getElementById('totalResponses').textContent = '0';
+                    document.getElementById('responsesPerMin').textContent = '0';
+                    document.getElementById('lastUpdate').textContent = '--';
+                    return;
+                }
+                
+                // Update header
+                document.getElementById('totalResponses').textContent = stats.totalResponses || 0;
+                
+                // Calculate responses per minute
+                const now = Date.now();
+                const timeElapsed = (now - (q.createdAt || now)) / 60000; // minutes
+                const rpm = timeElapsed > 0 ? (stats.totalResponses / timeElapsed).toFixed(1) : 0;
+                document.getElementById('responsesPerMin').textContent = rpm;
+                
+                document.getElementById('lastUpdate').textContent = formatDate(stats.lastUpdate);
+                
+                // Update questions grid
+                renderQuestionsGrid(q, stats);
+                
+                // Update summary
+                renderSummary(q, stats);
+            });
+        }
+        
+        function renderQuestionsGrid(q, stats) {
+            const container = document.getElementById('questionsGrid');
+            let html = '';
+            
+            for (let i = 0; i < q.questions.length; i++) {
+                const question = q.questions[i];
+                const qKey = 'q' + i;
+                const qStats = stats.questionStats && stats.questionStats[qKey] ? stats.questionStats[qKey] : {};
+                
+                // Calculate totals
+                let total = 0;
+                for (const key in qStats) {
+                    total += qStats[key];
+                }
+                
+                html += '<div class="bg-white rounded-lg shadow p-4">' +
+                    '<h4 class="font-semibold text-gray-800 mb-3 text-sm">' + escapeHtml(question.text) + '</h4>';
+                
+                if (total > 0) {
+                    html += '<div class="stacked-bar mb-2">';
+                    
+                    for (let j = 0; j < question.options.length; j++) {
+                        const count = qStats['opt' + j] || 0;
+                        const percent = (count / total * 100).toFixed(1);
+                        
+                        if (count > 0) {
+                            html += '<div class="stacked-segment color-opt-' + j + ' bar-animate" style="width: ' + percent + '%" title="' + escapeHtml(question.options[j]) + ': ' + count + ' (' + percent + '%)">' +
+                                (parseFloat(percent) > 10 ? percent + '%' : '') +
+                                '</div>';
+                        }
+                    }
+                    
+                    html += '</div>';
+                    
+                    // Legend
+                    html += '<div class="space-y-1 text-xs">';
+                    for (let j = 0; j < question.options.length; j++) {
+                        const count = qStats['opt' + j] || 0;
+                        const percent = (count / total * 100).toFixed(1);
+                        
+                        html += '<div class="flex items-center gap-2">' +
+                            '<div class="w-3 h-3 rounded color-opt-' + j + '"></div>' +
+                            '<span class="text-gray-700 flex-1">' + escapeHtml(question.options[j]) + '</span>' +
+                            '<span class="font-semibold text-gray-800">' + count + ' (' + percent + '%)</span>' +
+                            '</div>';
+                    }
+                    html += '</div>';
+                } else {
+                    html += '<p class="text-sm text-gray-500 text-center py-4">Sin respuestas aún</p>';
+                }
+                
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function renderSummary(q, stats) {
+            const container = document.getElementById('summaryContainer');
+            
+            // Calculate polarization (variance in responses)
+            const polarization = [];
+            const topOptions = [];
+            
+            for (let i = 0; i < q.questions.length; i++) {
+                const qKey = 'q' + i;
+                const qStats = stats.questionStats && stats.questionStats[qKey] ? stats.questionStats[qKey] : {};
+                
+                let total = 0;
+                const counts = [];
+                
+                for (let j = 0; j < q.questions[i].options.length; j++) {
+                    const count = qStats['opt' + j] || 0;
+                    total += count;
+                    counts.push(count);
+                    
+                    topOptions.push({
+                        question: q.questions[i].text,
+                        option: q.questions[i].options[j],
+                        count: count
+                    });
+                }
+                
+                if (total > 0) {
+                    // Calculate variance
+                    const mean = total / counts.length;
+                    let variance = 0;
+                    for (let k = 0; k < counts.length; k++) {
+                        variance += Math.pow(counts[k] - mean, 2);
+                    }
+                    variance = variance / counts.length;
+                    
+                    polarization.push({
+                        question: q.questions[i].text,
+                        variance: variance,
+                        total: total
+                    });
                 }
             }
             
-            render();
+            // Sort by variance (most polarized)
+            polarization.sort(function(a, b) { return b.variance - a.variance; });
+            
+            // Sort options by count
+            topOptions.sort(function(a, b) { return b.count - a.count; });
+            
+            let html = '<div class="mb-4">' +
+                '<h4 class="font-semibold text-gray-700 mb-2 text-sm">⚡ Top 3 Preguntas Polarizadas</h4>' +
+                '<div class="space-y-2 text-xs">';
+            
+            for (let i = 0; i < Math.min(3, polarization.length); i++) {
+                html += '<div class="p-2 bg-gray-50 rounded">' +
+                    '<p class="text-gray-700 font-medium">' + (i + 1) + '. ' + escapeHtml(polarization[i].question.substring(0, 40)) + '...</p>' +
+                    '</div>';
+            }
+            
+            if (polarization.length === 0) {
+                html += '<p class="text-gray-500 text-center py-2">Sin datos</p>';
+            }
+            
+            html += '</div></div>';
+            
+            html += '<div class="mb-4">' +
+                '<h4 class="font-semibold text-gray-700 mb-2 text-sm">🔥 Top 3 Opciones Más Elegidas</h4>' +
+                '<div class="space-y-2 text-xs">';
+            
+            for (let i = 0; i < Math.min(3, topOptions.length); i++) {
+                if (topOptions[i].count > 0) {
+                    html += '<div class="p-2 bg-gray-50 rounded">' +
+                        '<p class="text-gray-700 font-medium">' + escapeHtml(topOptions[i].option) + '</p>' +
+                        '<p class="text-gray-500 text-xs">' + topOptions[i].count + ' respuestas</p>' +
+                        '</div>';
+                }
+            }
+            
+            if (topOptions.length === 0 || topOptions[0].count === 0) {
+                html += '<p class="text-gray-500 text-center py-2">Sin datos</p>';
+            }
+            
+            html += '</div></div>';
+            
+            // Participation progress
+            const targetResponses = 100; // arbitrary target
+            const progress = Math.min(100, (stats.totalResponses / targetResponses * 100)).toFixed(0);
+            
+            html += '<div>' +
+                '<h4 class="font-semibold text-gray-700 mb-2 text-sm">📈 Progreso de Participación</h4>' +
+                '<div class="bg-gray-200 rounded-full h-4 overflow-hidden">' +
+                '<div class="bg-blue-600 h-full bar-animate" style="width: ' + progress + '%"></div>' +
+                '</div>' +
+                '<p class="text-xs text-gray-600 mt-1 text-center">' + stats.totalResponses + ' / ' + targetResponses + ' respuestas</p>' +
+                '</div>';
+            
+            container.innerHTML = html;
+        }
+        
+        // ==========================================
+        // EXPORT TO CSV
+        // ==========================================
+        
+        function exportToCSV(qId) {
+            const q = state.questionnaires.find(function(item) { return item.id === qId; });
+            if (!q) return;
+            
+            db.ref('responses/' + qId).once('value', function(snapshot) {
+                if (!snapshot.exists()) {
+                    alert('No hay respuestas para exportar');
+                    return;
+                }
+                
+                // Build CSV
+                let csv = 'Nombre,Fecha/Hora';
+                
+                // Add question headers
+                for (let i = 0; i < q.questions.length; i++) {
+                    csv += ',"' + q.questions[i].text.replace(/"/g, '""') + '"';
+                }
+                
+                csv += '\n';
+                
+                // Add responses
+                snapshot.forEach(function(child) {
+                    const response = child.val();
+                    const date = new Date(response.timestamp);
+                    
+                    csv += '"' + response.respondentName.replace(/"/g, '""') + '",';
+                    csv += '"' + date.toLocaleString('es-AR') + '"';
+                    
+                    for (let i = 0; i < q.questions.length; i++) {
+                        const answer = response.answers['q' + i];
+                        const answerText = q.questions[i].options[answer] || '';
+                        csv += ',"' + answerText.replace(/"/g, '""') + '"';
+                    }
+                    
+                    csv += '\n';
+                });
+                
+                // Download
+                const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', q.title.replace(/[^a-z0-9]/gi, '_') + '_responses.csv');
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        }
+        
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        
+        window.addEventListener('DOMContentLoaded', function() {
+            initAuth();
         });
-
     </script>
 </body>
 </html>
