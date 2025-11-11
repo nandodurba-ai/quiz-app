@@ -30,14 +30,14 @@
     <script>
         // Configuración de Firebase
         const firebaseConfig = {
-            apiKey: "AIzaSyCwjTrSZnWNadQFyYNkzxVN1mgUf7OSOYY",
-            authDomain: "quiz-app-69640.firebaseapp.com",
-            databaseURL: "https://quiz-app-69640-default-rtdb.firebaseio.com",
-            projectId: "quiz-app-69640",
-            storageBucket: "quiz-app-69640.firebasestorage.app",
-            messagingSenderId: "324495795029",
-            appId: "1:324495795029:web:b16cb58374201dbacfc5dc",
-            measurementId: "G-0QGLX1PSHY"
+            apiKey: "AIzaSyB1-qX4gDXs-WeSBaJu6Xhrvy8fVQ7vaes",
+            authDomain: "medicia-65cee.firebaseapp.com",
+            databaseURL: "https://medicia-65cee-default-rtdb.firebaseio.com",
+            projectId: "medicia-65cee",
+            storageBucket: "medicia-65cee.firebasestorage.app",
+            messagingSenderId: "640591572141",
+            appId: "1:640591572141:web:19d0f3d5935c05ebbf6a24",
+            measurementId: "G-M5DZ6L0WL3"
         };
 
         let database = null;
@@ -369,133 +369,6 @@
         }
 
         // ============================================
-        // FUNCIONES DE ESTADÍSTICAS
-        // ============================================
-
-        function calculateStats() {
-            if (!state.currentQuiz) return null;
-
-            return state.currentQuiz.questions.map((question, qIndex) => {
-                const optionCounts = question.options.map(() => 0);
-                let correctCount = 0;
-
-                Object.values(state.responses).forEach(response => {
-                    const answer = response.answers[qIndex];
-                    if (answer !== undefined) {
-                        optionCounts[answer]++;
-                        // Solo contar correctas si la pregunta tiene respuesta correcta definida
-                        if (question.hasCorrectAnswer && answer === question.correctAnswer) {
-                            correctCount++;
-                        }
-                    }
-                });
-
-                const totalResponses = Object.keys(state.responses).length;
-                return {
-                    question: question.question,
-                    options: question.options,
-                    counts: optionCounts,
-                    correctAnswer: question.correctAnswer,
-                    hasCorrectAnswer: question.hasCorrectAnswer,
-                    correctCount,
-                    totalResponses,
-                    accuracy: (question.hasCorrectAnswer && totalResponses > 0) 
-                        ? ((correctCount / totalResponses) * 100).toFixed(1) 
-                        : null
-                };
-            });
-        }
-
-        function createChart(canvasId, stat, type) {
-            setTimeout(() => {
-                const canvas = document.getElementById(canvasId);
-                if (!canvas) return;
-
-                const existingChart = Chart.getChart(canvas);
-                if (existingChart) existingChart.destroy();
-
-                const ctx = canvas.getContext('2d');
-
-                if (type === 'bar') {
-                    new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: stat.options.map((opt, i) => 'Opción ' + (i + 1)),
-                            datasets: [{
-                                label: 'Respuestas',
-                                data: stat.counts,
-                                backgroundColor: COLORS
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: { 
-                                legend: { display: false },
-                                tooltip: {
-                                    callbacks: {
-                                        afterLabel: (context) => {
-                                            const total = stat.totalResponses;
-                                            const value = context.parsed.y;
-                                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                            return percentage + '%';
-                                        }
-                                    }
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: { stepSize: 1 }
-                                }
-                            },
-                            animation: { duration: 750 }
-                        }
-                    });
-                } else if (type === 'pie') {
-                    new Chart(ctx, {
-                        type: 'pie',
-                        data: {
-                            labels: stat.options.map((opt, i) => 'Op. ' + (i + 1)),
-                            datasets: [{
-                                data: stat.counts,
-                                backgroundColor: COLORS
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                tooltip: {
-                                    callbacks: {
-                                        label: (context) => {
-                                            const label = context.label || '';
-                                            const value = context.parsed;
-                                            const total = stat.totalResponses;
-                                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                            return label + ': ' + value + ' (' + percentage + '%)';
-                                        }
-                                    }
-                                }
-                            },
-                            animation: { duration: 750 }
-                        }
-                    });
-                }
-            }, 100);
-        }
-
-        function updateDashboardCharts() {
-            const stats = calculateStats();
-            if (stats) {
-                stats.forEach((stat, index) => {
-                    createChart('bar-' + index, stat, 'bar');
-                    createChart('pie-' + index, stat, 'pie');
-                });
-            }
-        }
-
-        // ============================================
         // FUNCIONES DE EXPORTACIÓN
         // ============================================
 
@@ -557,7 +430,6 @@
             const exportData = {
                 quiz: state.currentQuiz,
                 responses: state.responses,
-                stats: calculateStats(),
                 exportDate: new Date().toISOString(),
                 participantCount: Object.keys(state.responses).length
             };
@@ -805,12 +677,25 @@
         }
 
         function renderDashboard() {
-            const stats = calculateStats();
             const responseCount = state.participantCount;
+            const totalQuestions = state.currentQuiz.questions.length;
+            const totalPossibleResponses = responseCount * totalQuestions;
+            
+            // Calcular respuestas por pregunta
+            const responsesPerQuestion = {};
+            state.currentQuiz.questions.forEach((q, index) => {
+                responsesPerQuestion[index] = 0;
+            });
+            
+            Object.values(state.responses).forEach(response => {
+                Object.keys(response.answers).forEach(qIndex => {
+                    responsesPerQuestion[qIndex]++;
+                });
+            });
 
             return `
                 <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-4 sm:p-6">
-                    <div class="max-w-7xl mx-auto">
+                    <div class="max-w-6xl mx-auto">
                         <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8 mb-6">
                             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
                                 <div>
@@ -820,7 +705,6 @@
                                             <div class="w-3 h-3 bg-green-500 rounded-full live-indicator"></div>
                                             <span class="text-sm font-semibold text-green-600">EN VIVO</span>
                                         </div>
-                                        <span class="text-lg font-bold text-indigo-600">👥 ${responseCount} / 50 participantes</span>
                                     </div>
                                 </div>
                                 <div class="flex gap-2 flex-wrap">
@@ -839,7 +723,7 @@
                                 </div>
                             </div>
 
-                            <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6">
+                            <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 mb-6">
                                 <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">📱 Comparte con tus participantes</h2>
                                 <div class="flex justify-center mb-4">
                                     <img src="${state.qrCode}" alt="QR Code" class="rounded-lg shadow-lg">
@@ -852,79 +736,181 @@
                             </div>
                         </div>
 
-                        ${stats && stats.length > 0 ? `
-                            ${stats.map((stat, index) => `
-                                <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8 mb-6">
-                                    <h3 class="text-xl font-bold text-gray-800 mb-4">Pregunta ${index + 1}: ${stat.question}</h3>
-                                    
-                                    <div class="grid md:grid-cols-2 gap-6 mb-6">
-                                        <div>
-                                            <h4 class="font-semibold text-gray-700 mb-3">Distribución de respuestas</h4>
-                                            <canvas id="bar-${index}" height="200"></canvas>
-                                        </div>
-                                        <div>
-                                            <h4 class="font-semibold text-gray-700 mb-3">Porcentajes</h4>
-                                            <canvas id="pie-${index}" height="200"></canvas>
-                                        </div>
-                                    </div>
-
-                                    <div class="grid ${stat.hasCorrectAnswer ? 'grid-cols-3' : 'grid-cols-1'} gap-4 mb-4">
-                                        ${stat.hasCorrectAnswer ? `
-                                            <div class="bg-green-50 rounded-lg p-4 text-center border-2 border-green-200">
-                                                <div class="text-3xl font-bold text-green-600">${stat.accuracy}%</div>
-                                                <div class="text-sm text-gray-600">Precisión</div>
-                                            </div>
-                                            <div class="bg-blue-50 rounded-lg p-4 text-center border-2 border-blue-200">
-                                                <div class="text-3xl font-bold text-blue-600">${stat.correctCount}</div>
-                                                <div class="text-sm text-gray-600">Correctas</div>
-                                            </div>
-                                        ` : ''}
-                                        <div class="bg-purple-50 rounded-lg p-4 text-center border-2 border-purple-200">
-                                            <div class="text-3xl font-bold text-purple-600">${stat.totalResponses}</div>
-                                            <div class="text-sm text-gray-600">Total respuestas</div>
-                                        </div>
-                                    </div>
-
-                                    ${stat.hasCorrectAnswer ? `
-                                        <div class="p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                                            <span class="font-semibold text-green-800">✅ Respuesta correcta: </span>
-                                            <span class="text-gray-800">${stat.options[stat.correctAnswer]}</span>
-                                        </div>
-                                    ` : `
-                                        <div class="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
-                                            <span class="font-semibold text-blue-800">📊 Modo encuesta: </span>
-                                            <span class="text-gray-800">No hay respuesta correcta definida</span>
-                                        </div>
-                                    `}
-                                </div>
-                            `).join('')}
-
-                            <div class="bg-white rounded-2xl shadow-xl p-8">
-                                <h2 class="text-2xl font-bold text-gray-800 mb-6">📊 Resumen General</h2>
-                                <div class="grid sm:grid-cols-3 gap-6">
-                                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border-2 border-blue-200">
-                                        <div class="text-4xl font-bold text-blue-600 mb-2">${responseCount}</div>
-                                        <div class="text-gray-700 font-semibold">Total Participantes</div>
-                                    </div>
-                                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border-2 border-purple-200">
-                                        <div class="text-4xl font-bold text-purple-600 mb-2">${state.currentQuiz.questions.length}</div>
-                                        <div class="text-gray-700 font-semibold">Total Preguntas</div>
-                                    </div>
-                                    <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border-2 border-green-200">
-                                        <div class="text-4xl font-bold text-green-600 mb-2">${stats.filter(s => s.hasCorrectAnswer).length > 0 ? (stats.filter(s => s.hasCorrectAnswer).reduce((acc, s) => acc + parseFloat(s.accuracy), 0) / stats.filter(s => s.hasCorrectAnswer).length).toFixed(1) + '%' : 'N/A'}</div>
-                                        <div class="text-gray-700 font-semibold">Precisión Promedio</div>
-                                    </div>
-                                </div>
-                            </div>
-                        ` : `
+                        ${responseCount === 0 ? `
                             <div class="bg-white rounded-2xl shadow-xl p-12 text-center">
                                 <div class="text-6xl mb-4">⏳</div>
                                 <h3 class="text-2xl font-bold text-gray-800 mb-2">Esperando participantes...</h3>
                                 <p class="text-gray-600">Comparte el código QR o el link para que comiencen a responder</p>
                                 <p class="text-sm text-green-600 mt-4">🔄 Los resultados se actualizan automáticamente</p>
                             </div>
+                        ` : `
+                            <!-- Contadores principales -->
+                            <div class="grid md:grid-cols-3 gap-6 mb-6">
+                                <div class="bg-white rounded-2xl shadow-xl p-8 text-center border-4 border-blue-200">
+                                    <div class="text-5xl font-bold text-blue-600 mb-2">${responseCount}</div>
+                                    <div class="text-gray-700 font-semibold">👥 Participantes</div>
+                                </div>
+                                
+                                <div class="bg-white rounded-2xl shadow-xl p-8 text-center border-4 border-purple-200">
+                                    <div class="text-5xl font-bold text-purple-600 mb-2">${totalQuestions}</div>
+                                    <div class="text-gray-700 font-semibold">📝 Preguntas</div>
+                                </div>
+                                
+                                <div class="bg-white rounded-2xl shadow-xl p-8 text-center border-4 border-green-200">
+                                    <div class="text-5xl font-bold text-green-600 mb-2">${totalPossibleResponses > 0 ? ((Object.keys(state.responses).length * totalQuestions / totalPossibleResponses * 100).toFixed(0)) : 0}%</div>
+                                    <div class="text-gray-700 font-semibold">✅ Completitud</div>
+                                </div>
+                            </div>
+
+                            <!-- Gráfico circular general -->
+                            <div class="bg-white rounded-2xl shadow-xl p-8 mb-6">
+                                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">📊 Distribución General de Respuestas</h2>
+                                <div class="max-w-md mx-auto" style="height: 400px;">
+                                    <canvas id="general-chart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Tabla de respuestas por pregunta -->
+                            <div class="bg-white rounded-2xl shadow-xl p-8">
+                                <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 Detalle por Pregunta</h2>
+                                <div class="space-y-4">
+                                    ${state.currentQuiz.questions.map((q, index) => {
+                                        const responses = responsesPerQuestion[index] || 0;
+                                        const percentage = responseCount > 0 ? ((responses / responseCount) * 100).toFixed(0) : 0;
+                                        
+                                        // Calcular respuestas por opción
+                                        const optionCounts = q.options.map(() => 0);
+                                        Object.values(state.responses).forEach(response => {
+                                            const answer = response.answers[index];
+                                            if (answer !== undefined) {
+                                                optionCounts[answer]++;
+                                            }
+                                        });
+                                        
+                                        const maxCount = Math.max(...optionCounts);
+                                        
+                                        return `
+                                            <div class="border-2 border-gray-200 rounded-xl p-6 hover:border-indigo-300 transition-colors">
+                                                <div class="flex justify-between items-start mb-4">
+                                                    <h3 class="text-lg font-bold text-gray-800 flex-1">Pregunta ${index + 1}: ${q.question}</h3>
+                                                    <div class="text-right ml-4">
+                                                        <div class="text-2xl font-bold text-indigo-600">${responses}/${responseCount}</div>
+                                                        <div class="text-sm text-gray-600">${percentage}% respondió</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="space-y-2">
+                                                    ${q.options.map((option, oIndex) => {
+                                                        const count = optionCounts[oIndex];
+                                                        const optPercentage = responses > 0 ? ((count / responses) * 100).toFixed(0) : 0;
+                                                        const isCorrect = q.hasCorrectAnswer && q.correctAnswer === oIndex;
+                                                        const isMostChosen = count === maxCount && count > 0;
+                                                        
+                                                        return `
+                                                            <div class="flex items-center gap-3">
+                                                                <div class="flex-1">
+                                                                    <div class="flex items-center justify-between mb-1">
+                                                                        <span class="text-sm font-medium text-gray-700">
+                                                                            ${isCorrect ? '✅ ' : ''}${option}
+                                                                        </span>
+                                                                        <span class="text-sm font-bold ${isMostChosen ? 'text-indigo-600' : 'text-gray-600'}">
+                                                                            ${count} (${optPercentage}%)
+                                                                        </span>
+                                                                    </div>
+                                                                    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                                                        <div class="h-full rounded-full transition-all duration-500 ${isCorrect ? 'bg-green-500' : isMostChosen ? 'bg-indigo-500' : 'bg-gray-400'}" 
+                                                                             style="width: ${optPercentage}%">
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        `;
+                                                    }).join('')}
+                                                </div>
+                                                
+                                                ${q.hasCorrectAnswer ? `
+                                                    <div class="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                                                        <span class="text-sm font-semibold text-green-800">
+                                                            Respuesta correcta: ${q.options[q.correctAnswer]} 
+                                                            (${optionCounts[q.correctAnswer]} personas, ${responses > 0 ? ((optionCounts[q.correctAnswer] / responses) * 100).toFixed(0) : 0}% de precisión)
+                                                        </span>
+                                                    </div>
+                                                ` : `
+                                                    <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                                        <span class="text-sm font-semibold text-blue-800">
+                                                            📊 Modo encuesta - No hay respuesta correcta
+                                                        </span>
+                                                    </div>
+                                                `}
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
                         `}
                     </div>
+                    
+                    ${responseCount > 0 ? `
+                        <script>
+                            // Crear gráfico circular general
+                            setTimeout(() => {
+                                const canvas = document.getElementById('general-chart');
+                                if (canvas) {
+                                    const existingChart = Chart.getChart(canvas);
+                                    if (existingChart) existingChart.destroy();
+                                    
+                                    const ctx = canvas.getContext('2d');
+                                    
+                                    // Datos para el gráfico: respuestas por pregunta
+                                    const labels = [];
+                                    const data = [];
+                                    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
+                                    
+                                    ${state.currentQuiz.questions.map((q, index) => `
+                                        labels.push('P${index + 1}: ${q.question.substring(0, 30)}...');
+                                        data.push(${responsesPerQuestion[index] || 0});
+                                    `).join('')}
+                                    
+                                    new Chart(ctx, {
+                                        type: 'pie',
+                                        data: {
+                                            labels: labels,
+                                            datasets: [{
+                                                data: data,
+                                                backgroundColor: colors,
+                                                borderWidth: 3,
+                                                borderColor: '#ffffff'
+                                            }]
+                                        },
+                                        options: {
+                                            responsive: true,
+                                            maintainAspectRatio: false,
+                                            plugins: {
+                                                legend: {
+                                                    position: 'bottom',
+                                                    labels: {
+                                                        padding: 15,
+                                                        font: { size: 13 },
+                                                        color: '#374151'
+                                                    }
+                                                },
+                                                tooltip: {
+                                                    callbacks: {
+                                                        label: (context) => {
+                                                            const value = context.parsed;
+                                                            const total = data.reduce((a, b) => a + b, 0);
+                                                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                                            return context.label + ': ' + value + ' respuestas (' + percentage + '%)';
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    });
+                                }
+                            }, 200);
+                        </script>
+                    ` : ''}
                 </div>
             `;
         }
