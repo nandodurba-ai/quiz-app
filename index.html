@@ -915,11 +915,6 @@
             `;
         }
 
-        function selectAnswer(qIndex, oIndex) {
-            updateState({ currentAnswers: { ...state.currentAnswers, [qIndex]: oIndex } });
-            render();
-        }
-
         function selectAnswer(qIdx, oIdx) {
             state.currentAnswers[qIdx] = oIdx;
             render();
