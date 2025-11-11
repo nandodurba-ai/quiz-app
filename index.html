@@ -915,6 +915,11 @@
             `;
         }
 
+        function selectAnswer(qIndex, oIndex) {
+            updateState({ currentAnswers: { ...state.currentAnswers, [qIndex]: oIndex } });
+            render();
+        }
+
         function renderParticipant() {
             return `
                 <div class="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4 sm:p-6">
@@ -942,7 +947,7 @@
                                                         type="radio"
                                                         name="question-${qIndex}"
                                                         ${state.currentAnswers[qIndex] === oIndex ? 'checked' : ''}
-                                                        onclick="updateState({ currentAnswers: { ...state.currentAnswers, ${qIndex}: ${oIndex} } }); render();"
+                                                        onclick="selectAnswer(${qIndex}, ${oIndex})"
                                                         class="w-5 h-5"
                                                     />
                                                     <span class="text-gray-800">${option}</span>
