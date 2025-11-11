@@ -921,53 +921,46 @@
         }
 
         function renderParticipant() {
-            return `
-                <div class="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4 sm:p-6">
-                    <div class="max-w-3xl mx-auto">
-                        <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
-                            <h1 class="text-3xl font-bold text-gray-800 mb-2">${state.currentQuiz.title}</h1>
-                            <p class="text-gray-600 mb-6">Responde todas las preguntas y envía tus respuestas</p>
-
-                            <input
-                                type="text"
-                                id="participant-name"
-                                placeholder="Tu nombre"
-                                value="${state.participantName}"
-                                class="w-full p-3 border-2 border-gray-300 rounded-lg mb-6 text-lg focus:border-green-500 focus:outline-none"
-                            />
-
-                            <div class="space-y-6 mb-6">
-                                ${state.currentQuiz.questions.map((q, qIndex) => `
-                                    <div class="bg-gray-50 p-6 rounded-xl border-2 border-gray-200">
-                                        <h3 class="text-lg font-bold text-gray-800 mb-4">${qIndex + 1}. ${q.question}</h3>
-                                        <div class="space-y-3">
-                                            ${q.options.map((option, oIndex) => `
-                                                <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${state.currentAnswers[qIndex] === oIndex ? 'bg-green-100 border-2 border-green-500' : 'bg-white border-2 border-gray-300 hover:border-green-300'}">
-                                                    <input
-                                                        type="radio"
-                                                        name="question-${qIndex}"
-                                                        ${state.currentAnswers[qIndex] === oIndex ? 'checked' : ''}
-                                                        onclick="selectAnswer(${qIndex}, ${oIndex})"
-                                                        class="w-5 h-5"
-                                                    />
-                                                    <span class="text-gray-800">${option}</span>
-                                                </label>
-                                            `).join('')}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-
-                            <button
-                                onclick="submitAnswers()"
-                                class="w-full px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-lg"
-                            >
-                                ✅ Enviar Respuestas
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+            let html = '<div class="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4 sm:p-6">';
+            html += '<div class="max-w-3xl mx-auto">';
+            html += '<div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8">';
+            html += '<h1 class="text-3xl font-bold text-gray-800 mb-2">' + state.currentQuiz.title + '</h1>';
+            html += '<p class="text-gray-600 mb-6">Responde todas las preguntas y envía tus respuestas</p>';
+            
+            html += '<input type="text" id="participant-name" placeholder="Tu nombre" value="' + state.participantName + '" ';
+            html += 'class="w-full p-3 border-2 border-gray-300 rounded-lg mb-6 text-lg focus:border-green-500 focus:outline-none" />';
+            
+            html += '<div class="space-y-6 mb-6">';
+            
+            state.currentQuiz.questions.forEach((q, qIndex) => {
+                html += '<div class="bg-gray-50 p-6 rounded-xl border-2 border-gray-200">';
+                html += '<h3 class="text-lg font-bold text-gray-800 mb-4">' + (qIndex + 1) + '. ' + q.question + '</h3>';
+                html += '<div class="space-y-3">';
+                
+                q.options.forEach((option, oIndex) => {
+                    const isSelected = state.currentAnswers[qIndex] === oIndex;
+                    const labelClass = isSelected ? 
+                        'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors bg-green-100 border-2 border-green-500' : 
+                        'flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors bg-white border-2 border-gray-300 hover:border-green-300';
+                    
+                    html += '<label class="' + labelClass + '">';
+                    html += '<input type="radio" name="question-' + qIndex + '" ';
+                    if (isSelected) html += 'checked ';
+                    html += 'onclick="selectAnswer(' + qIndex + ', ' + oIndex + ')" class="w-5 h-5" />';
+                    html += '<span class="text-gray-800">' + option + '</span>';
+                    html += '</label>';
+                });
+                
+                html += '</div></div>';
+            });
+            
+            html += '</div>';
+            html += '<button onclick="submitAnswers()" class="w-full px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-lg">';
+            html += '✅ Enviar Respuestas';
+            html += '</button>';
+            html += '</div></div></div>';
+            
+            return html;
         }
 
         function renderThankYou() {
