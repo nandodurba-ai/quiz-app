@@ -417,10 +417,6 @@
                 const ctx = canvas.getContext('2d');
 
                 if (type === 'bar') {
-                    // Calcular el máximo de respuestas para ajustar la escala
-                    const maxValue = Math.max(...stat.counts, 1);
-                    const suggestedMax = maxValue + Math.ceil(maxValue * 0.2); // 20% más del máximo
-                    
                     new Chart(ctx, {
                         type: 'bar',
                         data: {
@@ -428,9 +424,7 @@
                             datasets: [{
                                 label: 'Respuestas',
                                 data: stat.counts,
-                                backgroundColor: COLORS,
-                                borderRadius: 8,
-                                maxBarThickness: 80
+                                backgroundColor: COLORS
                             }]
                         },
                         options: {
@@ -440,11 +434,11 @@
                                 legend: { display: false },
                                 tooltip: {
                                     callbacks: {
-                                        label: (context) => {
-                                            const value = context.parsed.y;
+                                        afterLabel: (context) => {
                                             const total = stat.totalResponses;
+                                            const value = context.parsed.y;
                                             const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                            return 'Respuestas: ' + value + ' (' + percentage + '%)';
+                                            return percentage + '%';
                                         }
                                     }
                                 }
@@ -452,69 +446,26 @@
                             scales: {
                                 y: {
                                     beginAtZero: true,
-                                    suggestedMax: suggestedMax,
-                                    ticks: { 
-                                        stepSize: 1,
-                                        precision: 0
-                                    },
-                                    grid: {
-                                        color: 'rgba(0, 0, 0, 0.05)'
-                                    }
-                                },
-                                x: {
-                                    grid: {
-                                        display: false
-                                    }
+                                    ticks: { stepSize: 1 }
                                 }
                             },
                             animation: { duration: 750 }
                         }
                     });
                 } else if (type === 'pie') {
-                    // Filtrar opciones con 0 respuestas para gráfico más limpio
-                    const filteredData = [];
-                    const filteredLabels = [];
-                    const filteredColors = [];
-                    
-                    stat.counts.forEach((count, index) => {
-                        if (count > 0) {
-                            filteredData.push(count);
-                            filteredLabels.push('Opción ' + (index + 1));
-                            filteredColors.push(COLORS[index]);
-                        }
-                    });
-
-                    // Si no hay datos, mostrar mensaje
-                    if (filteredData.length === 0) {
-                        filteredData.push(1);
-                        filteredLabels.push('Sin respuestas');
-                        filteredColors.push('#e5e7eb');
-                    }
-
                     new Chart(ctx, {
                         type: 'pie',
                         data: {
-                            labels: filteredLabels,
+                            labels: stat.options.map((opt, i) => 'Op. ' + (i + 1)),
                             datasets: [{
-                                data: filteredData,
-                                backgroundColor: filteredColors,
-                                borderWidth: 2,
-                                borderColor: '#ffffff'
+                                data: stat.counts,
+                                backgroundColor: COLORS
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
                             plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                    labels: {
-                                        padding: 15,
-                                        font: {
-                                            size: 12
-                                        }
-                                    }
-                                },
                                 tooltip: {
                                     callbacks: {
                                         label: (context) => {
@@ -531,8 +482,6 @@
                         }
                     });
                 }
-            }, 100);
-        }
             }, 100);
         }
 
